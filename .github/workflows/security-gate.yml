@@ -1,0 +1,41 @@
+name: security-gate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run scanners
+        run: |
+          mkdir -p reports
+          docker run --rm -v "$PWD/src:/src" -v "$PWD/rules:/rules" -v "$PWD/reports:/reports" semgrep/semgrep semgrep scan --config /rules/custom.yml --json --output /reports/semgrep.json /src || true
+          docker run --rm -v "$PWD/src:/src" -v "$PWD/reports:/reports" zricethezav/gitleaks:latest detect --source /src --no-git --report-format json --report-path /reports/gitleaks.json --exit-code 0 || true
+          docker run --rm -v "$PWD/src:/src" -v "$PWD/reports:/reports" aquasec/trivy:latest fs --scanners vuln --severity HIGH,CRITICAL --format json --output /reports/trivy.json /src || true
+
+      - uses: open-policy-agent/setup-opa@v2
+        with:
+          version: latest
+
+      - name: OPA security gate
+        run: |
+          python3 tools/combine.py
+          opa eval --format pretty -i reports/input.json -d policy/security.rego "data.security.deny"
+          COUNT=$(opa eval --format raw -i reports/input.json -d policy/security.rego "count(data.security.deny)")
+          echo "Findings: $COUNT"
+          if [ "$COUNT" -gt 0 ]; then
+            echo "GATE: FAIL"
+            exit 1
+          fi
+          echo "GATE: PASS"
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-evidence
+          path: reports/

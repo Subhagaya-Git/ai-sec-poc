@@ -1,0 +1,4 @@
+﻿reports/*.json
+.env
+__pycache__/
+tools/opa.exe

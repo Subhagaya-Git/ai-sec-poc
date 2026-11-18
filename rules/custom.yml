@@ -1,0 +1,18 @@
+﻿rules:
+  - id: poc-sql-injection-fstring
+    languages: [python]
+    severity: ERROR
+    message: SQL query built with an f-string (SQL injection risk)
+    pattern: $CUR.execute(f"...")
+
+  - id: poc-flask-debug-true
+    languages: [python]
+    severity: ERROR
+    message: Flask debug=True must not be used in production
+    pattern: $APP.run(..., debug=True, ...)
+
+  - id: poc-hardcoded-password
+    languages: [python]
+    severity: ERROR
+    message: Hard-coded password found in source code
+    pattern-regex: (?i)password\s*=\s*"[^"]+"
